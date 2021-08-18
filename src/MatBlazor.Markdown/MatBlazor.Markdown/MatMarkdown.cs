@@ -152,7 +152,9 @@ namespace MatBlazor
             if (!table.Any()) return;
             
             // builder.OpenComponent<MatDataTable>(_sequence++);
-            builder.OpenElement(_sequence++, "table");
+            const string tableElementName = "table";
+            builder.OpenElement(_sequence++, tableElementName);
+            builder.AddAttribute(_sequence++, "class", "mdc-table");
             
             builder.AddContent(_sequence++, (RenderFragment)(tableBuilder =>
             {
@@ -160,15 +162,19 @@ namespace MatBlazor
                 var content = table.Skip(1);
                 
                 // thread
-                tableBuilder.OpenElement(_sequence++, "thead");
-                BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)header, "th");
+                const string headerElementName = "thead";
+                const string headerCellElementName = "th";
+                tableBuilder.OpenElement(_sequence++, headerElementName);
+                BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)header, headerCellElementName);
                 tableBuilder.CloseElement();
                 
                 // tbody
-                tableBuilder.OpenElement(_sequence++, "tbody");
+                const string bodyElementName = "tbody";
+                const string bodyCellElementName = "td";
+                tableBuilder.OpenElement(_sequence++, bodyElementName);
                 foreach (var row in content)
                 {
-                    BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)row, "td");
+                    BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)row, bodyCellElementName);
                 }
                 tableBuilder.CloseElement();
             }));
@@ -178,7 +184,10 @@ namespace MatBlazor
 
         private void BuildRenderTreeMarkdownTableRow(RenderTreeBuilder builder, Markdig.Extensions.Tables.TableRow tableRow, string cellElementName)
         {
-            builder.OpenElement(_sequence++, "tr");
+            const string tableRowElementName = "tr";
+            builder.OpenElement(_sequence++, tableRowElementName);
+            builder.AddAttribute(_sequence++, "class", "mdc-table-header-row");
+            builder.AddAttribute(_sequence++, "style", "white-space: nowrap;");
 
             foreach (var tableCell in tableRow.OfType<Markdig.Extensions.Tables.TableCell>())
             {
@@ -275,9 +284,13 @@ namespace MatBlazor
                     .OfType<LiteralInline>()
                     .Select(x => x.Content);
 
-                builder.OpenElement(_sequence++, "img");
-                builder.AddAttribute(_sequence++, "src", url);
-                builder.AddAttribute(_sequence++, "alt", string.Join(string.Empty, alt));
+                const string imageElementName = "img";
+                const string imageSrcAttr = "src";
+                const string imageAltAttr = "alt";
+                
+                builder.OpenElement(_sequence++, imageElementName);
+                builder.AddAttribute(_sequence++, imageSrcAttr, url);
+                builder.AddAttribute(_sequence++, imageAltAttr, string.Join(string.Empty, alt));
                 builder.CloseElement();
             }
             else
