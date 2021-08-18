@@ -29,23 +29,43 @@ namespace MatBlazor
         /// <summary>
         /// Default tag for the markdown root element
         /// </summary>
-        private const string MarkdownTag = "article";
+        private const string MarkdownElementName = "article";
         
         /// <summary>
         /// Default tag for a new line
         /// </summary>
-        private const string NewLineTag = "br";
+        private const string NewLineElementName = "br";
         
         /// <summary>
         /// Default tag for a code block
         /// </summary>
-        private const string CodeTag = "code";
+        private const string CodeElementName = "code";
         
         /// <summary>
         /// Default tag for a paragraph block
         /// </summary>
-        private const string ParagraphTag = "p";
+        private const string ParagraphElementName = "p";
+
+        /// <summary>
+        /// Default tag for a blockquote block
+        /// </summary>
+        private const string BlockquoteElementName = "blockquote";
+
+        /// <summary>
+        /// Default tag for an ordered list
+        /// </summary>
+        private const string OrderedListElementName = "ol";
         
+        /// <summary>
+        /// Default tag for an unordered list
+        /// </summary>
+        private const string UnorderedListElementName = "ul";
+
+        /// <summary>
+        /// Default tag for a list item
+        /// </summary>
+        private const string ListItemElementName = "li";
+
         /// <summary>
         /// Markdown text
         /// </summary>
@@ -60,7 +80,7 @@ namespace MatBlazor
             if (!parsedText.Any()) return;
 
             _sequence = 0;
-            builder.OpenElement(_sequence++, MarkdownTag);
+            builder.OpenElement(_sequence++, MarkdownElementName);
             BuildRenderTreeMarkdown(builder, parsedText);
             builder.CloseElement();
         }
@@ -71,29 +91,150 @@ namespace MatBlazor
             {
                 switch (block)
                 {
-                    case ParagraphBlock paragraph:
-                        BuildRenderTreeMarkdownParagraphBlock(builder, paragraph);
+                    case ParagraphBlock paragraphBlock:
+                        BuildRenderTreeMarkdownParagraphBlock(builder, paragraphBlock, null);
                         break;
-                    case HeadingBlock heading:
+                    case HeadingBlock headingBlock:
+                        BuildRenderTreeMarkdownHeadingBlock(builder, headingBlock);
                         break;
-                    case QuoteBlock quote:
+                    case QuoteBlock quoteBlock:
+                        BuildRenderTreeMarkdownQuoteBlock(builder, quoteBlock);
                         break;
                     case Table table:
+                        BuildRenderTreeMarkdownTable(builder, table);
                         break;
-                    case ListBlock list:
+                    case ListBlock listBlock:
+                        BuildRenderTreeMarkdownListBlock(builder, listBlock);
                         break;
-                    case ThematicBreakBlock:
+                    case ThematicBreakBlock thematicBreakBlock:
+                        BuildRenderTreeMarkdownThematicBreakBlock(builder, thematicBreakBlock);
                         break;
                 }
             }
         }
 
-        private void BuildRenderTreeMarkdownParagraphBlock(RenderTreeBuilder builder, ParagraphBlock paragraph)
+        private void BuildRenderTreeMarkdownThematicBreakBlock(RenderTreeBuilder builder, ThematicBreakBlock thematicBreakBlock)
+        {
+            builder.OpenComponent<MatDivider>(_sequence++);
+            builder.CloseComponent();
+        }
+
+        private void BuildRenderTreeMarkdownListBlock(RenderTreeBuilder builder, ListBlock listBlock)
+        {
+            if (!listBlock.Any()) return;
+
+            var elementName = listBlock.IsOrdered ? OrderedListElementName : UnorderedListElementName;
+            builder.OpenElement(_sequence++, elementName);
+
+            foreach (var blockItem in listBlock)
+            {
+                foreach (var blockItemInner in (ListItemBlock)blockItem)
+                {
+                    switch (blockItemInner)
+                    {
+                        case ListBlock listBlockInner:
+                            BuildRenderTreeMarkdownListBlock(builder, listBlockInner);
+                            break;
+                        case ParagraphBlock paragraphBlock:
+                            builder.OpenElement(_sequence++, ListItemElementName);
+                            BuildRenderTreeMarkdownParagraphBlock(builder, paragraphBlock, null);
+                            builder.CloseElement();
+                            break;
+                    }
+                }
+            }
+            
+            builder.CloseElement();
+        }
+
+        private void BuildRenderTreeMarkdownTable(RenderTreeBuilder builder, Table table)
+        {
+            if (!table.Any()) return;
+            
+            // builder.OpenComponent<MatDataTable>(_sequence++);
+            builder.OpenElement(_sequence++, "table");
+            
+            builder.AddContent(_sequence++, (RenderFragment)(tableBuilder =>
+            {
+                var header = table.First();
+                var content = table.Skip(1);
+                
+                // thread
+                tableBuilder.OpenElement(_sequence++, "thead");
+                BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)header, "th");
+                tableBuilder.CloseElement();
+                
+                // tbody
+                tableBuilder.OpenElement(_sequence++, "tbody");
+                foreach (var row in content)
+                {
+                    BuildRenderTreeMarkdownTableRow(tableBuilder, (Markdig.Extensions.Tables.TableRow)row, "td");
+                }
+                tableBuilder.CloseElement();
+            }));
+            
+            builder.CloseElement();
+        }
+
+        private void BuildRenderTreeMarkdownTableRow(RenderTreeBuilder builder, Markdig.Extensions.Tables.TableRow tableRow, string cellElementName)
+        {
+            builder.OpenElement(_sequence++, "tr");
+
+            foreach (var tableCell in tableRow.OfType<Markdig.Extensions.Tables.TableCell>())
+            {
+                builder.OpenElement(_sequence++, cellElementName);
+
+                if (tableCell.Any() && tableCell.First() is ParagraphBlock paragraphBlock)
+                {
+                    BuildRenderTreeMarkdownParagraphBlock(builder, paragraphBlock, null);
+                }
+                
+                builder.CloseElement();
+            }
+            
+            builder.CloseElement();
+        }
+
+        private void BuildRenderTreeMarkdownQuoteBlock(RenderTreeBuilder builder, QuoteBlock quoteBlock)
+        {
+            builder.OpenElement(_sequence++, BlockquoteElementName);
+            BuildRenderTreeMarkdown(builder, quoteBlock);
+            builder.CloseElement();
+        }
+
+        private void BuildRenderTreeMarkdownHeadingBlock(RenderTreeBuilder builder, HeadingBlock headingBlock)
+        {
+            if (headingBlock.Inline == null)  return;
+
+            var matHeaderType = headingBlock.Level switch
+            {
+                1 => typeof(MatH1),
+                2 => typeof(MatH2),
+                3 => typeof(MatH3),
+                4 => typeof(MatH4),
+                5 => typeof(MatH5),
+                6 => typeof(MatH6),
+                _ => typeof(MatH6)
+            };
+            
+            BuildRenderTreeMarkdownParagraphBlock(builder, headingBlock, matHeaderType);
+        }
+
+        private void BuildRenderTreeMarkdownParagraphBlock(RenderTreeBuilder builder, LeafBlock paragraph, Type matTypography)
         {
             if (paragraph.Inline == null)  return;
-            builder.OpenElement(_sequence++, ParagraphTag);
-            builder.AddContent(_sequence++, (RenderFragment)(contentBuilder => BuildRenderTreeMarkdownInlines(contentBuilder, paragraph.Inline)));
-            builder.CloseComponent();
+            if (matTypography != null)
+            {
+                builder.OpenComponent(_sequence++, matTypography);
+                builder.AddAttribute(_sequence++, nameof(MatH1.ChildContent), (RenderFragment)(contentBuilder => BuildRenderTreeMarkdownInlines(contentBuilder, paragraph.Inline)));
+                builder.CloseComponent();
+            }
+            else
+            {
+                builder.OpenElement(_sequence++, ParagraphElementName);
+                builder.AddContent(_sequence++, (RenderFragment)(contentBuilder => BuildRenderTreeMarkdownInlines(contentBuilder, paragraph.Inline)));
+                builder.CloseElement();
+            }
         }
 
         private void BuildRenderTreeMarkdownInlines(RenderTreeBuilder builder, ContainerInline inlines)
@@ -102,23 +243,23 @@ namespace MatBlazor
             {
                 switch (inline)
                 {
-                    case LiteralInline x:
-                        BuildRenderTreeMarkdownLiteralInline(builder, x);
+                    case LiteralInline literalInline:
+                        BuildRenderTreeMarkdownLiteralInline(builder, literalInline);
                         break;
-                    case HtmlInline x:
-                        BuildRenderTreeMarkdownHtmlInline(builder, x);
+                    case HtmlInline htmlInline:
+                        BuildRenderTreeMarkdownHtmlInline(builder, htmlInline);
                         break;
-                    case LineBreakInline x:
-                        BuildRenderTreeMarkdownLineBreakInline(builder, x);
+                    case LineBreakInline lineBreakInline:
+                        BuildRenderTreeMarkdownLineBreakInline(builder, lineBreakInline);
                         break;
-                    case CodeInline x:
-                        BuildRenderTreeMarkdownCodeInline(builder, x);
+                    case CodeInline codeInline:
+                        BuildRenderTreeMarkdownCodeInline(builder, codeInline);
                         break;
-                    case EmphasisInline x:
-                        BuildRenderTreeMarkdownEmphasisInline(builder, x);
+                    case EmphasisInline emphasisInline:
+                        BuildRenderTreeMarkdownEmphasisInline(builder, emphasisInline);
                         break;
-                    case LinkInline x:
-                        BuildRenderTreeMarkdownLinkInline(builder, x);
+                    case LinkInline linkInline:
+                        BuildRenderTreeMarkdownLinkInline(builder, linkInline);
                         break;
                 }
             }
@@ -144,7 +285,7 @@ namespace MatBlazor
                 builder.OpenComponent<MatAnchorLink>(_sequence++);
                 builder.AddAttribute(_sequence++, nameof(MatButtonLink.Href).ToLowerInvariant(), url); // MatAnchorLink has no href an attribute
                 builder.AddAttribute(_sequence++, nameof(MatAnchorLink.ChildContent), (RenderFragment)(linkBuilder => BuildRenderTreeMarkdownInlines(linkBuilder, linkInline)));
-                builder.CloseElement();
+                builder.CloseComponent();
             }
         }
 
@@ -159,14 +300,14 @@ namespace MatBlazor
 
         private void BuildRenderTreeMarkdownCodeInline(RenderTreeBuilder builder, CodeInline codeInline)
         {
-            builder.OpenElement(_sequence++, CodeTag);
+            builder.OpenElement(_sequence++, CodeElementName);
             builder.AddContent(_sequence++, codeInline.Content);
             builder.CloseElement();
         }
 
         private void BuildRenderTreeMarkdownLineBreakInline(RenderTreeBuilder builder, LineBreakInline lineBreakInline)
         {
-            builder.OpenElement(_sequence++, NewLineTag);
+            builder.OpenElement(_sequence++, NewLineElementName);
             builder.CloseElement();
         }
 
